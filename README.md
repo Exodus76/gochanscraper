@@ -2,7 +2,7 @@
 
 * Installation
 ```sh
-go install github.com/Exodus76/gochanscraper@latest
+  go install github.com/Exodus76/gochanscraper@latest
 ```
 
 * Usage
