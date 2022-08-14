@@ -52,6 +52,7 @@ func main() {
 		return
 	}
 	link = os.Args[1]
+	urlCheck(link)
 
 	bname, tid, tr, imgs, b := handleLink(link)
 	var pb = progressbar.New(int(imgs))
@@ -133,5 +134,12 @@ func (b board) GetFile(i int64, bname string, tid string, pb *progressbar.Progre
 	}
 
 	pb.Add(1)
+}
 
+func urlCheck(link string) {
+	m, _ := regexp.MatchString(`^https://boards.4chan(nel)*.org/wg/thread/\d*$`, link)
+	if !m {
+		fmt.Println("wrong url")
+		os.Exit(1)
+	}
 }

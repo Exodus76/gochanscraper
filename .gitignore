@@ -1,1 +1,4 @@
 .vscode/
+build/gochanscraper-amd64
+build/gochanscraper-arm64
+build/gochanscraper-amd64.exe

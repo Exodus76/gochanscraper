@@ -1,7 +1,7 @@
 # from https://www.digitalocean.com/community/tutorials/how-to-build-go-executables-for-multiple-platforms-on-ubuntu-16-04
 #!/usr/bin/env bash
 
-package=$1
+package="github.com/Exodus76/gochanscraper"
 if [[ -z "$package" ]]; then
   echo "usage: $0 <package-name>"
   exit 1
