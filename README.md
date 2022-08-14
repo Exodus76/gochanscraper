@@ -9,9 +9,7 @@
 ```
   gochanscraper https://boards.4chan.org/<board>/thread/<id>
 ```
-
-creates a folder with thread_id as folder name
-
+ creates a folder with thread_id as folder name<br/><br/>
 
 * Compile
 ```sh
