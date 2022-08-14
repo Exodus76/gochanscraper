@@ -55,7 +55,15 @@ func main() {
 	urlCheck(link)
 
 	bname, tid, tr, imgs, b := handleLink(link)
-	var pb = progressbar.New(int(imgs))
+	var pb = progressbar.NewOptions(
+		int(imgs),
+		progressbar.OptionShowElapsedTimeOnFinish(),
+		// progressbar.OptionOnCompletion(func() {
+		// 	// fmt.Println(config.elapsed)
+		// 	OptionShowElapsedTimeOnFinish()
+		// 	//wait for commi
+		// }),
+	)
 
 	wg.Add(int(imgs)) //add the total no of routines that are going to run to the watchsyncgroup
 
@@ -70,6 +78,10 @@ func main() {
 	}
 
 	wg.Wait() //wait for it
+}
+
+func lol() {
+
 }
 
 func handleLink(link string) (string, string, int64, int64, board) {
@@ -137,7 +149,7 @@ func (b board) GetFile(i int64, bname string, tid string, pb *progressbar.Progre
 }
 
 func urlCheck(link string) {
-	m, _ := regexp.MatchString(`^https://boards.4chan(nel)*.org/wg/thread/\d*$`, link)
+	m, _ := regexp.MatchString(`^https://boards.4chan(nel)*.org/.+?/thread/\d*$`, link)
 	if !m {
 		fmt.Println("wrong url")
 		os.Exit(1)
