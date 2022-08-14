@@ -119,7 +119,6 @@ func (b board) GetFile(i int64, bname string, tid string, pb *progressbar.Progre
 	defer file.Close()
 
 	url := "https://i.4cdn.org" + bname + strconv.FormatInt(tim, 10) + ext
-
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println("Cant get the file " + fname)
