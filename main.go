@@ -137,7 +137,7 @@ func (b board) GetFile(i int64, bname string, tid string, pb *progressbar.Progre
 }
 
 func urlCheck(link string) {
-	m, _ := regexp.MatchString(`^https://boards.4chan(nel)*.org/wg/thread/\d*$`, link)
+	m, _ := regexp.MatchString(`^https://boards.4chan(nel)*.org/[^/]+/thread/\d*$`, link)
 	if !m {
 		fmt.Println("wrong url")
 		os.Exit(1)
