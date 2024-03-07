@@ -11,6 +11,8 @@ import (
 	"path"
 	"regexp"
 	"sync"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 type board struct {
@@ -56,16 +58,19 @@ func main() {
 
 	// board := parseLink(threadLink, &newBoard)
 	boardName, threadId, totalReplies, totalImgs, newBoard := parseLink(threadLink, &board)
+	fmt.Println("Board: ", boardName, "\nThread: ", threadId, "\nReplies: ", totalReplies, "\nImages: ", totalImgs)
 
 	var wg sync.WaitGroup
 	errChan := make(chan error)
+
+	var pb = progressbar.NewOptions(int(totalImgs), progressbar.OptionShowElapsedTimeOnFinish())
 
 	for i := range totalReplies {
 		if newBoard.Posts[i].Tim != 0 {
 			wg.Add(1)
 			go func(i int64) {
 				defer wg.Done()
-				err := newBoard.GetPostImage(i, boardName, threadId)
+				err := newBoard.GetPostImage(i, boardName, threadId, pb)
 				if err != nil {
 					errChan <- err
 				}
@@ -81,13 +86,11 @@ func main() {
 		}
 	}()
 
-	wg.Wait()
+	wg.Wait() //wait for it
 	close(errChan)
-
-	fmt.Println("Board: ", boardName, "\nThread: ", threadId, "\nReplies: ", totalReplies, "\nImages: ", totalImgs)
 }
 
-func (b *board) GetPostImage(index int64, boardName string, threadId string) error {
+func (b *board) GetPostImage(index int64, boardName string, threadId string, pb *progressbar.ProgressBar) error {
 	fileName := b.Posts[index].Filename
 	tim := b.Posts[index].Tim
 	extension := b.Posts[index].Ext
@@ -110,6 +113,8 @@ func (b *board) GetPostImage(index int64, boardName string, threadId string) err
 	if err != nil {
 		log.Fatalf("error while writing to file %s: %v", fileName, err)
 	}
+
+	pb.Add(1)
 
 	return nil
 }
