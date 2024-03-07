@@ -3,11 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"regexp"
+	"sync"
 )
 
 type board struct {
@@ -54,13 +57,61 @@ func main() {
 	// board := parseLink(threadLink, &newBoard)
 	boardName, threadId, totalReplies, totalImgs, newBoard := parseLink(threadLink, &board)
 
-	for i := range totalImgs {
+	var wg sync.WaitGroup
+	errChan := make(chan error)
 
-		fmt.Println("Image: ", newBoard.Posts[i].Filename, "Size: ", newBoard.Posts[i].Fsize, "MD5: ", newBoard.Posts[i].Md5)
+	for i := range totalReplies {
+		if newBoard.Posts[i].Tim != 0 {
+			wg.Add(1)
+			go func(i int64) {
+				defer wg.Done()
+				err := newBoard.GetPostImage(i, boardName, threadId)
+				if err != nil {
+					errChan <- err
+				}
+			}(i)
+		}
 	}
 
-	fmt.Println("Board: ", boardName, "Thread: ", threadId, "Replies: ", totalReplies, "Images: ", totalImgs, "Posts: ", len(newBoard.Posts))
+	go func() {
+		for err := range errChan {
+			if err != nil {
+				log.Fatalf("error while downloading image: %v", err)
+			}
+		}
+	}()
 
+	wg.Wait()
+	close(errChan)
+
+	fmt.Println("Board: ", boardName, "\nThread: ", threadId, "\nReplies: ", totalReplies, "\nImages: ", totalImgs)
+}
+
+func (b *board) GetPostImage(index int64, boardName string, threadId string) error {
+	fileName := b.Posts[index].Filename
+	tim := b.Posts[index].Tim
+	extension := b.Posts[index].Ext
+
+	filePath := path.Join(threadId, fileName+extension)
+
+	file, err := os.Create(filePath)
+	if err != nil {
+		log.Fatalf("error while creating file: %v", err)
+	}
+	defer file.Close()
+
+	resp, err := http.Get(fmt.Sprintf("https://i.4cdn.org%s/%d%s", boardName, tim, extension))
+	if err != nil {
+		log.Fatalf("error while fetching image: %v", err)
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		log.Fatalf("error while writing to file %s: %v", fileName, err)
+	}
+
+	return nil
 }
 
 func parseLink(threadLink string, newBoard *board) (string, string, int64, int64, *board) {
@@ -72,12 +123,12 @@ func parseLink(threadLink string, newBoard *board) (string, string, int64, int64
 
 	e := os.Mkdir(threadId, fs.ModePerm)
 	if e != nil && !os.IsExist(e) {
-		log.Fatalf("directory already exists", e)
+		log.Fatalf("directory already exists: %v", e)
 	}
 
 	resp, err := http.Get(threadLink + ".json")
 	if err != nil {
-		log.Fatalf("fetch error", err)
+		log.Fatalf("fetch error: %v", err)
 	}
 	defer resp.Body.Close()
 
