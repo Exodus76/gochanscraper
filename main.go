@@ -3,16 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
-	"sync"
-
-	"github.com/schollz/progressbar/v3"
 )
 
 type board struct {
@@ -42,104 +37,62 @@ type board struct {
 	} `json:"posts"`
 }
 
-var wg sync.WaitGroup
-
 func main() {
-	//get the link
-	var link string
-	if len(os.Args) < 2 {
-		fmt.Println("no arguments")
+	//handle cli args
+	var board board
+	var threadLink string
+
+	if len(os.Args) > 1 {
+		threadLink = os.Args[1]
+	} else {
+		fmt.Println("Please provide a thread link")
 		return
 	}
-	link = os.Args[1]
-	urlCheck(link)
 
-	bname, tid, tr, imgs, b := handleLink(link)
-	var pb = progressbar.New(int(imgs))
+	urlCheck(threadLink)
 
-	wg.Add(int(imgs)) //add the total no of routines that are going to run to the watchsyncgroup
+	// board := parseLink(threadLink, &newBoard)
+	boardName, threadId, totalReplies, totalImgs, newBoard := parseLink(threadLink, &board)
 
-	var i int64 = 0
-	for i <= tr {
-		if b.Posts[i].Tim == 0 {
-			i++
-			continue
-		}
-		go b.GetFile(i, bname, tid, pb)
-		i++
+	for i := range totalImgs {
+
+		fmt.Println("Image: ", newBoard.Posts[i].Filename, "Size: ", newBoard.Posts[i].Fsize, "MD5: ", newBoard.Posts[i].Md5)
 	}
 
-	wg.Wait() //wait for it
+	fmt.Println("Board: ", boardName, "Thread: ", threadId, "Replies: ", totalReplies, "Images: ", totalImgs, "Posts: ", len(newBoard.Posts))
+
 }
 
-func handleLink(link string) (string, string, int64, int64, board) {
-	re1 := regexp.MustCompile(`boards.4chan.org|boards.4channel.org`)
-	link = re1.ReplaceAllString(link, "a.4cdn.org")
+func parseLink(threadLink string, newBoard *board) (string, string, int64, int64, *board) {
+	cdnLink := regexp.MustCompile(`boards.4chan.org|boards.4channel.org`).ReplaceAllString(threadLink, "a.4cdn.org")
 
-	re2 := regexp.MustCompile(`a.4cdn.org/(.+?)/thread/([0-9]*)`)
-	m := re2.FindStringSubmatch(link)
-	bname := "/" + m[1] + "/"
-	tid := m[2]
+	cdnLinkFinal := regexp.MustCompile(`a.4cdn.org/(.+?)/thread/([0-9]*)`).FindStringSubmatch(cdnLink)
+	boardName := "/" + cdnLinkFinal[1] + "/"
+	threadId := cdnLinkFinal[2]
 
-	//mkdir returns err
-	e := os.Mkdir(tid, fs.ModePerm)
+	e := os.Mkdir(threadId, fs.ModePerm)
 	if e != nil && !os.IsExist(e) {
-		fmt.Println("directory already exists")
-		log.Fatal(e)
+		log.Fatalf("directory already exists", e)
 	}
 
-	resp, err := http.Get(link + ".json")
+	resp, err := http.Get(threadLink + ".json")
 	if err != nil {
-		fmt.Println("fetch error")
-		log.Fatal(err)
+		log.Fatalf("fetch error", err)
 	}
 	defer resp.Body.Close()
 
-	b_json := &board{}
-	json.NewDecoder(resp.Body).Decode(b_json)
-	tr := b_json.Posts[0].Replies
-	imgs := b_json.Posts[0].Images
+	json.NewDecoder(resp.Body).Decode(&newBoard)
 
-	return bname, tid, tr, imgs, *b_json
+	totalReplies := newBoard.Posts[0].Replies
+	totalImgs := newBoard.Posts[0].Images
+
+	return boardName, threadId, totalReplies, totalImgs, newBoard
 }
 
-func (b board) GetFile(i int64, bname string, tid string, pb *progressbar.ProgressBar) {
-	defer wg.Done() //decrement syncgroup count when the job is done
+func urlCheck(threadLink string) {
+	m := regexp.MustCompile(`^https://boards.4chan(nel)*.org/[^/]+/thread/\d*$`).Match([]byte(threadLink))
 
-	fname := b.Posts[i].Filename
-	tim := b.Posts[i].Tim
-	ext := b.Posts[i].Ext
-	fp := tid + "/" + fname + ext
-
-	file, err := os.Create(fp)
-
-	if err != nil {
-		fmt.Println("error while creating file")
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	url := "https://i.4cdn.org" + bname + strconv.FormatInt(tim, 10) + ext
-	resp, err := http.Get(url)
-	if err != nil {
-		fmt.Println("Cant get the file " + fname)
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	_, e := io.Copy(file, resp.Body)
-	if e != nil {
-		fmt.Println("error while copying file contents")
-		log.Fatal(e)
-	}
-
-	pb.Add(1)
-}
-
-func urlCheck(link string) {
-	m, _ := regexp.MatchString(`^https://boards.4chan(nel)*.org/[^/]+/thread/\d*$`, link)
 	if !m {
-		fmt.Println("wrong url")
-		os.Exit(1)
+		log.Fatal("Invalid URL")
 	}
 }
