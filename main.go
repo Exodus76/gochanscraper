@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/schollz/progressbar/v3"
@@ -41,6 +43,8 @@ type board struct {
 		W           int64  `json:"w"`
 	} `json:"posts"`
 }
+
+var filenames []string
 
 func main() {
 	//handle cli args
@@ -88,6 +92,12 @@ func main() {
 
 	wg.Wait() //wait for it
 	close(errChan)
+
+	select {
+	case <-errChan:
+		fmt.Println("\nGenerating html...")
+		generateHtml(threadId, threadLink, filenames)
+	}
 }
 
 func (b *board) GetPostImage(index int64, boardName string, threadId string, pb *progressbar.ProgressBar) error {
@@ -96,6 +106,8 @@ func (b *board) GetPostImage(index int64, boardName string, threadId string, pb 
 	extension := b.Posts[index].Ext
 
 	filePath := path.Join(threadId, fileName+extension)
+
+	filenames = append(filenames, fileName+extension)
 
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -150,5 +162,44 @@ func urlCheck(threadLink string) {
 
 	if !m {
 		log.Fatal("Invalid URL")
+	}
+}
+
+// helper function
+func isImageFile(filename string) bool {
+	lowercaseFilename := strings.ToLower(filename)
+	return strings.HasSuffix(lowercaseFilename, ".jpg") ||
+		strings.HasSuffix(lowercaseFilename, ".png") ||
+		strings.HasSuffix(lowercaseFilename, ".gif")
+}
+
+func generateHtml(threadId string, threadLink string, fileNames []string) {
+	f, err := os.Create("./" + threadId + "/_index.html")
+	if err != nil {
+		fmt.Println("error while creating html file")
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	t, err := template.New("template.html").Funcs(template.FuncMap{
+		"isImageFile": isImageFile,
+	}).ParseFiles("template.html")
+	if err != nil {
+		log.Fatalf("error while parsing template: %v", err)
+	}
+
+	data := struct {
+		Title     string
+		FileNames []string
+	}{
+		Title:     threadLink,
+		FileNames: fileNames,
+	}
+
+	err = t.Execute(f, data)
+
+	if err != nil {
+		fmt.Println("error while writing to html file")
+		log.Fatal(err)
 	}
 }
