@@ -17,3 +17,7 @@
   cd gochanscraper/build
   go build ../
 ```
+
+# TODO
+- implement watch function to autodownload when new posts
+- maybe give a notification when the thread has expired so the user knows that there are no more posts to autodownload

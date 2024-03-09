@@ -2,14 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -50,6 +51,7 @@ func main() {
 	//handle cli args
 	var board board
 	var threadLink string
+	const TOTALJOBS int64 = 10
 
 	if len(os.Args) > 1 {
 		threadLink = os.Args[1]
@@ -66,21 +68,24 @@ func main() {
 
 	var wg sync.WaitGroup
 	errChan := make(chan error)
+	jobs := make(chan int64, totalImgs)
+	// results := make(chan int64, totalImgs)
 
 	var pb = progressbar.NewOptions(int(totalImgs), progressbar.OptionShowElapsedTimeOnFinish())
 
-	for i := range totalReplies {
+	// start workers which then wait for jobs to be assigned
+	for _ = range TOTALJOBS {
+		wg.Add(1)
+		go worker(jobs, newBoard, boardName, threadId, pb, &wg, errChan)
+	}
+
+	// assign jobs to workers
+	for i := range newBoard.Posts {
 		if newBoard.Posts[i].Tim != 0 {
-			wg.Add(1)
-			go func(i int64) {
-				defer wg.Done()
-				err := newBoard.GetPostImage(i, boardName, threadId, pb)
-				if err != nil {
-					errChan <- err
-				}
-			}(i)
+			jobs <- int64(i)
 		}
 	}
+	close(jobs)
 
 	go func() {
 		for err := range errChan {
@@ -93,10 +98,18 @@ func main() {
 	wg.Wait() //wait for it
 	close(errChan)
 
-	select {
-	case <-errChan:
-		fmt.Println("\nGenerating html...")
-		generateHtml(threadId, threadLink, filenames)
+	fmt.Println("\nGenerating html...")
+	generateHtml(threadId, threadLink, filenames)
+}
+
+func worker(jobs <-chan int64, newBoard *board, boardName string, threadId string, pb *progressbar.ProgressBar, wg *sync.WaitGroup, errChan chan<- error) {
+	defer wg.Done()
+
+	for j := range jobs {
+		err := newBoard.GetPostImage(j, boardName, threadId, pb)
+		if err != nil {
+			errChan <- err
+		}
 	}
 }
 
@@ -105,25 +118,29 @@ func (b *board) GetPostImage(index int64, boardName string, threadId string, pb 
 	tim := b.Posts[index].Tim
 	extension := b.Posts[index].Ext
 
-	filePath := path.Join(threadId, fileName+extension)
+	fp := path.Join(threadId, cleanupFilename(fileName)+extension)
 
-	filenames = append(filenames, fileName+extension)
+	filenames = append(filenames, cleanupFilename(fileName)+extension)
 
-	file, err := os.Create(filePath)
-	if err != nil {
-		log.Fatalf("error while creating file: %v", err)
-	}
-	defer file.Close()
+	_, err := os.Stat(fp)
+	if errors.Is(err, os.ErrNotExist) {
+		//file does not exist
+		file, err := os.Create(fp)
+		if err != nil {
+			log.Fatalf("error while creating file: %v", err)
+		}
+		defer file.Close()
 
-	resp, err := http.Get(fmt.Sprintf("https://i.4cdn.org%s/%d%s", boardName, tim, extension))
-	if err != nil {
-		log.Fatalf("error while fetching image: %v", err)
-	}
-	defer resp.Body.Close()
+		resp, err := http.Get(fmt.Sprintf("https://i.4cdn.org%s/%d%s", boardName, tim, extension))
+		if err != nil {
+			log.Fatalf("error while fetching image: %v", err)
+		}
+		defer resp.Body.Close()
 
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		log.Fatalf("error while writing to file %s: %v", fileName, err)
+		_, err = io.Copy(file, resp.Body)
+		if err != nil {
+			log.Fatalf("error while writing to file %s: %v", fileName, err)
+		}
 	}
 
 	pb.Add(1)
@@ -138,9 +155,9 @@ func parseLink(threadLink string, newBoard *board) (string, string, int64, int64
 	boardName := "/" + cdnLinkFinal[1] + "/"
 	threadId := cdnLinkFinal[2]
 
-	e := os.Mkdir(threadId, fs.ModePerm)
-	if e != nil && !os.IsExist(e) {
-		log.Fatalf("directory already exists: %v", e)
+	err := os.MkdirAll(threadId, os.FileMode(0777))
+	if err != nil {
+		log.Fatalf("error while creating directory: %v", err)
 	}
 
 	resp, err := http.Get(threadLink + ".json")
@@ -202,4 +219,19 @@ func generateHtml(threadId string, threadLink string, fileNames []string) {
 		fmt.Println("error while writing to html file")
 		log.Fatal(err)
 	}
+}
+
+func cleanupFilename(filename string) string {
+	// Remove any invalid characters from the filename
+	cleanFilename := strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == ':' || r == '*' || r == '?' || r == '"' || r == '<' || r == '>' || r == '|' {
+			return '_'
+		}
+		return r
+	}, filename)
+
+	// Ensure the filename is not too long
+	cleanFilename = filepath.Base(cleanFilename)
+
+	return cleanFilename
 }
