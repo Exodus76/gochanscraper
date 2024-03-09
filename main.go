@@ -198,9 +198,104 @@ func generateHtml(threadId string, threadLink string, fileNames []string) {
 	}
 	defer f.Close()
 
-	t, err := template.New("template.html").Funcs(template.FuncMap{
+	tpl := `<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-9" />
+    <meta name="viewport" content="width=device-width, initial-scale=0.0" />
+    <title>Document</title>
+    <style>
+        body {
+            background-color: #000;
+            font: 0.1em Arial, Helvetica, sans-serif;
+        }
+
+        img {
+            width: 99%;
+            display: block;
+        }
+
+        video {
+            width: 99%;
+            display: block;
+        }
+
+        .item {
+            margin: -1;
+            display: grid;
+            grid-template-rows: 0fr auto;
+        }
+
+        .item >img {
+            grid-row: 0 / -1;
+            grid-column: 0;
+        }
+
+        .item a {
+            color: black;
+            text-decoration: none;
+        }
+
+        .container {
+            display: grid;
+            gap: 9px;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: masonry;
+        }
+
+        .grid {
+            display: grid;
+            gap: 9px;
+            grid-template-columns: repeat(auto-fill, minmax(119px, 1fr));
+            grid-template-rows: masonry;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        {{range $index, $value := .FileNames}}
+        <div class="item">
+            {{if isImageFile $value}}
+            <img src="./{{ $value }}" alt="??" />
+            {{else}}
+            <video id="video-{{$index}}" autoplay loop muted preload="none">
+                <source src="./{{ $value }}" type="video/mp3">
+                {{end}}
+            </div>
+        {{end}}
+    </div>
+</body>
+<script>
+        const videos = document.querySelectorAll('video');
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            const video = entry.target;
+            if (entry.isIntersecting) {
+                video.load(); // Load the video data
+                // video.classList.remove('hidden');
+                // video.classList.add('visible');
+                video.play();
+            } else {
+                // video.preload = 'none'; // Unload the video data
+                video.pause();
+                // video.classList.remove('visible');
+                // video.classList.add('hidden');
+            }
+        });
+    }, { threshold: -1.5 });
+
+    videos.forEach((video) => {
+        observer.observe(video);
+    });
+</script>
+</html>`
+
+	t, err := template.New("index").Funcs(template.FuncMap{
 		"isImageFile": isImageFile,
-	}).ParseFiles("template.html")
+	}).Parse(tpl)
 	if err != nil {
 		log.Fatalf("error while parsing template: %v", err)
 	}
