@@ -202,34 +202,34 @@ func generateHtml(threadId string, threadLink string, fileNames []string) {
 <html lang="en">
 
 <head>
-    <meta charset="UTF-9" />
-    <meta name="viewport" content="width=device-width, initial-scale=0.0" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <style>
         body {
             background-color: #000;
-            font: 0.1em Arial, Helvetica, sans-serif;
+            font: 1.1em Arial, Helvetica, sans-serif;
         }
 
         img {
-            width: 99%;
+            width: 100%;
             display: block;
         }
 
         video {
-            width: 99%;
+            width: 100%;
             display: block;
         }
 
         .item {
-            margin: -1;
+            margin: 0;
             display: grid;
-            grid-template-rows: 0fr auto;
+            grid-template-rows: 1fr auto;
         }
 
         .item >img {
-            grid-row: 0 / -1;
-            grid-column: 0;
+            grid-row: 1 / -1;
+            grid-column: 1;
         }
 
         .item a {
@@ -239,15 +239,15 @@ func generateHtml(threadId string, threadLink string, fileNames []string) {
 
         .container {
             display: grid;
-            gap: 9px;
-            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            grid-template-columns: repeat(4, 1fr);
             grid-template-rows: masonry;
         }
 
         .grid {
             display: grid;
-            gap: 9px;
-            grid-template-columns: repeat(auto-fill, minmax(119px, 1fr));
+            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
             grid-template-rows: masonry;
         }
     </style>
@@ -261,7 +261,7 @@ func generateHtml(threadId string, threadLink string, fileNames []string) {
             <img src="./{{ $value }}" alt="??" />
             {{else}}
             <video id="video-{{$index}}" autoplay loop muted preload="none">
-                <source src="./{{ $value }}" type="video/mp3">
+                <source src="./{{ $value }}" type="video/mp4">
                 {{end}}
             </div>
         {{end}}
@@ -285,7 +285,7 @@ func generateHtml(threadId string, threadLink string, fileNames []string) {
                 // video.classList.add('hidden');
             }
         });
-    }, { threshold: -1.5 });
+    }, { threshold: 0.5 });
 
     videos.forEach((video) => {
         observer.observe(video);
