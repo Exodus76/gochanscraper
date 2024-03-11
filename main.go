@@ -62,9 +62,16 @@ func main() {
 
 	urlCheck(threadLink)
 
+	path, err := os.Getwd()
+	if err != nil {
+		log.Println(err)
+	}
+	os.Chdir(path) //change to current directory
+	fmt.Println("The thread will download in the current directory: ", path)
+
 	// board := parseLink(threadLink, &newBoard)
 	boardName, threadId, totalReplies, totalImgs, newBoard := parseLink(threadLink, &board)
-	fmt.Println("Board: ", boardName, "\nThread: ", threadId, "\nReplies: ", totalReplies, "\nImages: ", totalImgs)
+	fmt.Println("Board: ", boardName, "\nThread ID: ", threadId, "\nReplies: ", totalReplies, "\nImages: ", totalImgs)
 
 	var wg sync.WaitGroup
 	errChan := make(chan error)
@@ -74,7 +81,7 @@ func main() {
 	var pb = progressbar.NewOptions(int(totalImgs), progressbar.OptionShowElapsedTimeOnFinish())
 
 	// start workers which then wait for jobs to be assigned
-	for _ = range TOTALJOBS {
+	for range TOTALJOBS {
 		wg.Add(1)
 		go worker(jobs, newBoard, boardName, threadId, pb, &wg, errChan)
 	}
