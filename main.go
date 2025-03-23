@@ -167,7 +167,7 @@ func parseLink(threadLink string, newBoard *board) (string, string, int64, int64
 		log.Fatalf("error while creating directory: %v", err)
 	}
 
-	resp, err := http.Get(threadLink + ".json")
+	resp, err := http.Get(cdnLink + ".json")
 	if err != nil {
 		log.Fatalf("fetch error: %v", err)
 	}
