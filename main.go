@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -46,15 +47,28 @@ type board struct {
 }
 
 var filenames []string
+var filenameMutex sync.Mutex
 
 func main() {
 	//handle cli args
 	var board board
 	var threadLink string
-	const TOTALJOBS int64 = 10
 
-	if len(os.Args) > 1 {
-		threadLink = os.Args[1]
+	jobsPtr := flag.Int64("jobs", 10, "Sets the total number of connection in parallel")
+
+	flag.Parse()
+	var TOTALJOBS int64 = *jobsPtr
+	//log.Fatalf("????b", TOTALJOBS)
+	//if len(os.Args) > 1 {
+	//	threadLink = os.Args[1]
+	//} else {
+	//	fmt.Println("Please provide a thread link")
+	//	return
+	//}
+
+	args := flag.Args()
+	if len(args) > 0 {
+		threadLink = args[0]
 	} else {
 		fmt.Println("Please provide a thread link")
 		return
@@ -64,9 +78,11 @@ func main() {
 
 	path, err := os.Getwd()
 	if err != nil {
-		log.Println(err)
+		log.Printf("Could not get the current working directory: %v", err)
+
+		path = "."
 	}
-	os.Chdir(path) //change to current directory
+	//os.Chdir(path) //change to current directory
 	fmt.Println("The thread will download in the current directory: ", path)
 
 	// board := parseLink(threadLink, &newBoard)
@@ -74,7 +90,9 @@ func main() {
 	fmt.Println("Board: ", boardName, "\nThread ID: ", threadId, "\nReplies: ", totalReplies, "\nImages: ", totalImgs)
 
 	var wg sync.WaitGroup
-	errChan := make(chan error)
+
+	//creating a buffered errChan
+	errChan := make(chan error, totalImgs)
 	jobs := make(chan int64, totalImgs)
 	// results := make(chan int64, totalImgs)
 
@@ -97,7 +115,7 @@ func main() {
 	go func() {
 		for err := range errChan {
 			if err != nil {
-				log.Fatalf("error while downloading image: %v", err)
+				log.Printf("error while downloading image: %v", err)
 			}
 		}
 	}()
@@ -127,7 +145,9 @@ func (b *board) GetPostImage(index int64, boardName string, threadId string, pb 
 
 	fp := path.Join(threadId, cleanupFilename(fileName)+extension)
 
+	filenameMutex.Lock()
 	filenames = append(filenames, cleanupFilename(fileName)+extension)
+	filenameMutex.Unlock()
 
 	_, err := os.Stat(fp)
 	if errors.Is(err, os.ErrNotExist) {
@@ -162,7 +182,7 @@ func parseLink(threadLink string, newBoard *board) (string, string, int64, int64
 	boardName := "/" + cdnLinkFinal[1] + "/"
 	threadId := cdnLinkFinal[2]
 
-	err := os.MkdirAll(threadId, os.FileMode(0777))
+	err := os.MkdirAll(threadId, os.FileMode(0755))
 	if err != nil {
 		log.Fatalf("error while creating directory: %v", err)
 	}
@@ -268,7 +288,7 @@ func generateHtml(threadId string, threadLink string, fileNames []string) {
             <img src="./{{ $value }}" alt="??" />
             {{else}}
             <video id="video-{{$index}}" autoplay loop muted preload="none">
-                <source src="./{{ $value }}" type="video/mp4">
+                <source src="./{{ $value }}" type="video/webm">
                 {{end}}
             </div>
         {{end}}
